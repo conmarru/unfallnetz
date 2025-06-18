@@ -1,8 +1,7 @@
 # src/heatmap.py
 
+import requests
 from flask import jsonify, current_app, request
-import requests  # für Hamburg-API-Aufruf
-# TODO: Wenn 'requests' nicht vorhanden, alternativ urllib verwenden.
 
 def register_heatmap_routes(app, collection_handler):
     @app.route('/api/heatmap')
@@ -37,74 +36,47 @@ def register_heatmap_routes(app, collection_handler):
 
     @app.route('/api/streets')
     def streets_api():
-        # bbox= minLon,minLat,maxLon,maxLat
-        bbox = request.args.get('bbox', '')
-        try:
-            min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(','))
-        except Exception:
-            return jsonify({"error": "Ungültige bbox-Parameter"}), 400
+        """
+        Liefert alle OSM-Highway-Ways innerhalb der übergebenen bbox als GeoJSON.
+        Verwendet Overpass API, f=html-Parameter entfällt.
+        """
+        bbox = request.args.get('bbox')
+        if not bbox:
+            return jsonify({"error": "bbox fehlt"}), 400
 
-        # Hamburg-Querschnitte-API (GeoJSON via f=json + bbox) :contentReference[oaicite:1]{index=1}
-        hamburg_url = (
-            "https://api.hamburg.de/datasets/v1/querschnitte/api/items"
-            f"?f=json&bbox={min_lon},{min_lat},{max_lon},{max_lat}"
-        )
+        overpass_url = 'http://overpass-api.de/api/interpreter'
+        # Overpass QL: alle Ways mit highway-Tag in bbox
+        query = f'[out:json][timeout:25];way["highway"]({bbox});out geom;'
         try:
-            resp = requests.get(hamburg_url, timeout=10)
+            resp = requests.post(overpass_url, data={'data': query}, timeout=30)
             resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:
-            current_app.logger.error("Fehler beim Abrufen der Straßen-API", exc_info=True)
-            return jsonify({"error": "Straßen-API-Fehler"}), 502
+            osm = resp.json()
+        except Exception:
+            current_app.logger.error("Fehler beim Abrufen der Overpass-Daten", exc_info=True)
+            return jsonify({"error": "Straßen-Daten nicht verfügbar"}), 502
 
-        features = data.get("features", [])
-        out_features = []
-
-        for feat in features:
-            geom = feat.get("geometry")
-            props = feat.get("properties", {})
-
-            # Events in der Nähe (50 m) zählen
-            try:
-                nearby = list(collection_handler.find({
-                    "geometry": {
-                        "$near": {
-                            "$geometry": geom,
-                            "$maxDistance": 50
-                        }
-                    }
-                }))
-            except Exception:
-                nearby = []
-
-            count = len(nearby)
-            # Unfall prüfen (severity == 'accident' o. ä.)
-            has_accident = any(
-                ev.get("properties", {}).get("severity") == "accident"
-                for ev in nearby
-            )
-
-            # dangerLevel: 0=keine, 1=ein Nicht-Unfall, 2=Unfall oder ≥2
-            if count == 0:
-                level = 0
-            elif has_accident or count >= 2:
-                level = 2
-            else:
-                level = 1
-
-            # Ergebnis-Feature
-            new_props = props.copy()
-            new_props.update({
-                "eventCount": count,
-                "dangerLevel": level
-            })
-            out_features.append({
+        features = []
+        for elem in osm.get('elements', []):
+            if elem.get('type') != 'way':
+                continue
+            geometry = elem.get('geometry', [])
+            # Baue LineString-Koordinatenliste
+            coords = [[node['lon'], node['lat']] for node in geometry]
+            if len(coords) < 2:
+                continue
+            features.append({
                 "type": "Feature",
-                "geometry": geom,
-                "properties": new_props
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": coords
+                },
+                "properties": {
+                    # dangerLevel wird clientseitig berechnet
+                    "id": elem.get('id')
+                }
             })
 
         return jsonify({
             "type": "FeatureCollection",
-            "features": out_features
+            "features": features
         })

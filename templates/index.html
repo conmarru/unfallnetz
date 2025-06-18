@@ -2,26 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hamburg Unfallkarte</title>
 
-  <!-- CSS laden -->
-  <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/style.css') }}"
-  />
+  <!-- CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   <link
     href="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css"
     rel="stylesheet"
   />
 
-  <!-- JavaScript-Bibliotheken -->
+  <!-- Mapbox & Socket.IO -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <!-- OSM → GeoJSON Converter für Straßenmodus -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/osmtogeojson/3.0.0/osmtogeojson.min.js"></script>
-  <!-- Turf.js für räumliche Analysen -->
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <!-- OsmToGeoJSON & Turf.js für Straßenmodus -->
+  <script src="https://unpkg.com/osmtogeojson@3.0.0"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 </head>
 <body>
   <div id="top-bar">
@@ -75,11 +72,22 @@
     </div>
     <form id="filter-form">
       <label>
-        <input type="checkbox" name="type" value="UNFALL" checked onchange="updateFilter(this)" /> Unfälle
+        <input
+          type="checkbox"
+          name="type"
+          value="UNFALL"
+          checked
+          onchange="updateFilter(this)"
+        />Unfälle
       </label>
       <label>
-        <input type="checkbox" name="type" value="AuthorityOperation" checked onchange="updateFilter(this)" />
-        Behördliche Einsätze
+        <input
+          type="checkbox"
+          name="type"
+          value="AuthorityOperation"
+          checked
+          onchange="updateFilter(this)"
+        />Behördliche Einsätze
       </label>
     </form>
   </div>
@@ -92,32 +100,36 @@
     </div>
     <ul>
       <li><strong>Unfall:</strong> Autounfälle.</li>
-      <li><strong>Behördliche Einsätze:</strong> Einsätze, die von Behörden ausgeführt werden (z. B., Feuerwehreinsatz).</li>
+      <li>
+        <strong>Behördliche Einsätze:</strong> Einsätze, die von Behörden
+        ausgeführt werden (z.B., Feuerwehreinsatz).
+      </li>
     </ul>
   </div>
 
-  <!-- Sidebar für neueste Events -->
+  <!-- Latest Events Sidebar -->
   <div id="latest-events-sidebar" class="slide-menu">
     <div class="menu-header">
       <h2>Letzte Ereignisse</h2>
       <button class="close-btn" onclick="toggleLatestEventsSidebar()">✕</button>
     </div>
-    <div id="latest-events-content"><p>Keine Ereignisse vorhanden.</p></div>
+    <div id="latest-events-content">
+      <p>Keine Ereignisse vorhanden.</p>
+    </div>
   </div>
 
-  <!-- Detail-Sidebar -->
+  <!-- Details Sidebar -->
   <div id="sidebar" class="slide-menu">
-    <div class="menu-header">
-      <h2>Details zu Ereignissen</h2>
-      <button class="close-btn" onclick="toggleSidebar()">✕</button>
-    </div>
+    <div class="close-btn" onclick="toggleSidebar()">✕</div>
+    <h2>Details zu Ereignissen</h2>
     <div id="event-content">
       <p>Wähle ein Ereignis aus, um Details zu sehen.</p>
     </div>
   </div>
 
-  <!-- Button to Open the Latest Events Sidebar -->
-  <button id="latest-events-toggle" onclick="toggleLatestEventsSidebar()">Letzte Ereignisse</button>
+  <button id="latest-events-toggle" onclick="toggleLatestEventsSidebar()">
+    Letzte Ereignisse
+  </button>
 
   <!-- Eigenes JavaScript -->
   <script src="{{ url_for('static', filename='js/script.js') }}"></script>
