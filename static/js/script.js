@@ -3,44 +3,34 @@
 // 1. Globaler Zustand und Konstanten
 const AppState = {
   themes: [
-    { name: 'Standard', url: 'https://sgx.geodatenzentrum.de/gdz_basemapde_vektor/styles/bm_web_col.json' },
+    { name: 'Standard',    url: 'https://sgx.geodatenzentrum.de/gdz_basemapde_vektor/styles/bm_web_col.json' },
     { name: 'Alternative', url: 'mapbox://styles/mapbox/streets-v11' },
-    { name: 'Dark', url: 'mapbox://styles/mapbox/dark-v10' },
-    { name: 'Light', url: 'mapbox://styles/mapbox/light-v10' }
+    { name: 'Dark',        url: 'mapbox://styles/mapbox/dark-v10' },
+    { name: 'Light',       url: 'mapbox://styles/mapbox/light-v10' }
   ],
   currentTheme: 0,
-
-  // 3 Modi: Punkte, Heatmap, Straßenmodus
   modes: ['Punkte', 'Heatmap', 'Straßenmodus'],
   currentMode: 0,
-
   markers: [],
-
   heat: {
     sourceId: 'heatmap-data',
-    layerId: 'heatmap-layer'
+    layerId:  'heatmap-layer'
   },
-
-  streets: {
-    sourceId: 'street-data',
-    layerId: 'street-layer'
-  },
-
   districts: {
     'Eimsbüttel': {
       'Schanzenviertel': [9.963, 53.564],
-      'Hoheluft-West': [9.973, 53.579],
-      'Eppendorf': [9.982, 53.581]
+      'Hoheluft-West':   [9.973, 53.579],
+      'Eppendorf':       [9.982, 53.581]
     },
     'Altona': {
-      'Ottensen': [9.933, 53.554],
+      'Ottensen':        [9.933, 53.554],
       'Altona-Altstadt': [9.935, 53.546],
-      'Bahrenfeld': [9.906, 53.565]
+      'Bahrenfeld':      [9.906, 53.565]
     },
     'Hamburg-Mitte': {
       'St. Pauli': [9.966, 53.550],
       'HafenCity': [10.002, 53.541],
-      'Altstadt': [10.001, 53.550]
+      'Altstadt':  [10.001, 53.550]
     }
   }
 };
@@ -97,38 +87,44 @@ function ensureHeatmapLayer(map, geojson) {
   } else {
     map.addSource(sourceId, { type: 'geojson', data: geojson });
     map.addLayer({
-      id: layerId,
-      type: 'heatmap',
-      source: sourceId,
-      maxzoom: 17,
+      id:       layerId,
+      type:     'heatmap',
+      source:   sourceId,
+      maxzoom:  17,
       paint: {
-        'heatmap-weight': ['get', 'gefahrenstufe'],
+        'heatmap-weight':    ['get', 'gefahrenstufe'],
         'heatmap-intensity': 1,
-        'heatmap-radius': 25,
-        'heatmap-opacity': 0.6,
+        'heatmap-radius':    25,
+        'heatmap-opacity':   0.6,
         'heatmap-color': [
-          'interpolate',
-          ['linear'],
-          ['heatmap-density'],
-          0, 'rgba(0, 0, 255, 0)',
+          'interpolate', ['linear'], ['heatmap-density'],
+          0,   'rgba(0,0,255,0)',
           0.2, 'blue',
           0.4, 'lime',
           0.6, 'yellow',
           0.8, 'orange',
-          1, 'red'
+          1,   'red'
         ]
       }
     });
   }
 }
 
-// 3.5 Ein generischer Switch-Funktionshelfer für Arrays
+// 3.5 Heatmap-Daten laden
+function loadHeatmapData() {
+  fetch('/api/heatmap')
+    .then(res => res.json())
+    .then(fc => ensureHeatmapLayer(map, fc))
+    .catch(err => console.error('Heatmap konnte nicht geladen werden:', err));
+}
+
+// 3.6 Ein generischer Switch-Funktionshelfer für Arrays
 function switchTo(indexKey, arrayKey, onChange) {
   AppState[indexKey] = (AppState[indexKey] + 1) % AppState[arrayKey].length;
   onChange(AppState[indexKey]);
 }
 
-// 3.6 UI-Helpers für Toggle und FlyTo
+// 3.7 UI-Helpers für Toggle und FlyTo
 const UI = {
   toggle(id) {
     document.getElementById(id)?.classList.toggle('active');
@@ -144,71 +140,34 @@ const UI = {
   }
 };
 
-// 3.7 Straßen-Layer laden oder aktualisieren
-function ensureStreetLayer(map, geojson) {
-  const { sourceId, layerId } = AppState.streets;
-  if (map.getSource(sourceId)) {
-    map.getSource(sourceId).setData(geojson);
-  } else {
-    map.addSource(sourceId, { type: 'geojson', data: geojson });
-    map.addLayer({
-      id: layerId,
-      type: 'line',
-      source: sourceId,
-      paint: {
-        'line-width': 3,
-        // dangerLevel: 0 → blau, 1 → gelb, 2 → rot
-        'line-color': [
-          'match',
-          ['get', 'dangerLevel'],
-          0, 'blue',
-          1, 'yellow',
-          2, 'red',
-          /*fallback*/ 'gray'
-        ]
-      }
-    });
-  }
-}
-
-// 3.8 Straßenmodus-Daten laden
-function loadStreetData() {
-  const bounds = map.getBounds();
-  const url = `/api/streets?bbox=${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-  fetch(url)
-    .then(res => res.json())
-    .then(geojson => ensureStreetLayer(map, geojson))
-    .catch(err => console.error('Streets data konnte nicht geladen werden:', err));
-}
-
 // 4. Map-Instanz erzeugen
 const map = new mapboxgl.Map({
   container: 'map',
-  style: AppState.themes[AppState.currentTheme].url,
-  center: [9.990682, 53.564086],
-  zoom: 10.5
+  style:     AppState.themes[AppState.currentTheme].url,
+  center:    [9.990682, 53.564086],
+  zoom:      10.5
 });
 addControls(map);
 
 // 5. Klasse für Events (Marker)
 class MapEvent {
   constructor(data) {
-    this.title = data.type;
-    this.date = new Date(data.date);
-    this.location = data.location;
+    this.title       = data.type;
+    this.date        = new Date(data.date);
+    this.location    = data.location;
     this.description = data.description;
     this.coordinates = [data.lng, data.lat];
-    this.marker = null;
+    this.marker      = null;
   }
 
   addToMap(map) {
     const el = document.createElement('div');
-    el.className = 'map-marker';
+    el.className            = 'map-marker';
     el.style.backgroundColor = computeColorByAge(this.date);
-    el.style.opacity = computeOpacityByAge(this.date);
-    el.style.width = '15px';
-    el.style.height = '15px';
-    el.style.borderRadius = '75%';
+    el.style.opacity         = computeOpacityByAge(this.date);
+    el.style.width           = '15px';
+    el.style.height          = '15px';
+    el.style.borderRadius    = '75%';
     el.type = this.title;
 
     this.marker = new mapboxgl.Marker(el)
@@ -220,8 +179,8 @@ class MapEvent {
       this.title,
       this.date.toISOString().split('T')[0],
       this.location,
-      this.coordinates[1], // lat
-      this.coordinates[0], // lng
+      this.coordinates[1],
+      this.coordinates[0],
       this.description
     );
     AppState.markers.push(this.marker);
@@ -230,67 +189,126 @@ class MapEvent {
 
 // 6. Socket.IO-Verbindung für Echtzeit-Events
 const socket = io();
-socket.on('connect', () => console.log('Verbunden mit Server'));
+socket.on('connect',    () => console.log('Verbunden mit Server'));
 socket.on('disconnect', () => console.log('Verbindung getrennt'));
-socket.on('EventCreated', (data) => {
+socket.on('EventCreated', data => {
   const event = new MapEvent(data);
   event.addToMap(map);
 });
 
-// 7. Heatmap-Daten laden
-function loadHeatmapData() {
-  fetch('/api/heatmap')
+// --- NEU: Straßenmodus via Feature-State auf Mapbox-Road-Layern ---
+
+// 7. Einmalige Initialisierung des Danger-Layers
+function initRoadDangerLayer() {
+  if (map.getLayer('road-danger')) return;
+
+  const roadLayers = map.getStyle().layers
+    .filter(l => l.type === 'line' && l.source === 'composite' && l['source-layer'] === 'road')
+    .map(l => l.id);
+  const insertBefore = roadLayers.length ? roadLayers[roadLayers.length - 1] : undefined;
+
+  map.addLayer({
+    id:            'road-danger',
+    type:          'line',
+    source:        'composite',
+    'source-layer':'road',
+    paint: {
+      'line-width': [
+        'interpolate', ['linear'], ['zoom'], 10, 1, 15, 3
+      ],
+      'line-color': [
+        'case',
+        ['==',['feature-state','dangerLevel'],2], 'red',
+        ['==',['feature-state','dangerLevel'],1], 'yellow',
+        /* default */                                 'blue'
+      ]
+    }
+  }, insertBefore);
+}
+
+// 8. Feature-State aktualisieren
+function updateRoadDangerStates() {
+  const url = buildStreetApiUrl();
+  fetch(url)
     .then(res => res.json())
-    .then(geojson => ensureHeatmapLayer(map, geojson))
-    .catch(err => console.error('Heatmap konnte nicht geladen werden:', err));
+    .then(fc => {
+      fc.features.forEach(f => {
+        const [lon, lat] = f.geometry.coordinates;
+        const lvl = f.properties.dangerLevel;
+        const delta = 0.0005;
+        const bbox = [
+          [lon - delta, lat - delta],
+          [lon + delta, lat + delta]
+        ];
+        const hits = map.queryRenderedFeatures(bbox, { layers: ['road-danger'] });
+        hits.forEach(rf => {
+          if (rf.id != null) {
+            map.setFeatureState({
+              source:      rf.source,
+              sourceLayer: rf.sourceLayer,
+              id:          rf.id
+            }, { dangerLevel: lvl });
+          }
+        });
+      });
+    })
+    .catch(err => console.error('Straßenmodus Fehler:', err));
 }
 
-// 8. Theme-Wechsel
-function toggleTheme() {
-  switchTo('currentTheme', 'themes', (newIndex) => {
-    map.setStyle(AppState.themes[newIndex].url);
-    map.once('style.load', () => {
-      const mode = AppState.modes[AppState.currentMode];
-      if (mode === 'Heatmap') {
-        loadHeatmapData();
-      } else if (mode === 'Straßenmodus') {
-        loadStreetData();
-      } else {
-        AppState.markers.forEach(m => m.addTo(map));
-      }
-    });
-  });
-  document.getElementById('theme-toggle').innerHTML =
-    `<h3>${AppState.themes[AppState.currentTheme].name}</h3>`;
+// 9. Hilfsfunktion für API-URL mit Bounding Box
+function buildStreetApiUrl() {
+  const b = map.getBounds();
+  return `/api/streets?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
 }
 
-// 9. Moduswechsel zwischen Punkten, Heatmap und Straßenmodus
+// 10. Street-Mode aktivieren / deaktivieren
+function enableStreetMode() {
+  initRoadDangerLayer();
+  updateRoadDangerStates();
+  map.on('moveend', updateRoadDangerStates);
+  map.on('zoomend', updateRoadDangerStates);
+}
+
+function disableStreetMode() {
+  map.off('moveend', updateRoadDangerStates);
+  map.off('zoomend', updateRoadDangerStates);
+}
+
+// 11. Moduswechsel
 function toggleModeChange() {
-  switchTo('currentMode', 'modes', (newIndex) => {
-    const currentMode = AppState.modes[newIndex];
+  switchTo('currentMode','modes', () => {
+    const mode = AppState.modes[AppState.currentMode];
 
-    // Vorherige Layer entfernen
+    // Alte Ebenen/Marker entfernen
     AppState.markers.forEach(m => m.remove());
     if (map.getLayer(AppState.heat.layerId)) map.removeLayer(AppState.heat.layerId);
     if (map.getSource(AppState.heat.sourceId)) map.removeSource(AppState.heat.sourceId);
-    if (map.getLayer(AppState.streets.layerId)) map.removeLayer(AppState.streets.layerId);
-    if (map.getSource(AppState.streets.sourceId)) map.removeSource(AppState.streets.sourceId);
 
-    // Neuen Modus laden
-    if (currentMode === 'Heatmap') {
-      loadHeatmapData();
-    } else if (currentMode === 'Straßenmodus') {
-      loadStreetData();
-    } else {
-      AppState.markers.forEach(m => m.addTo(map));
-    }
+    disableStreetMode();
+    if      (mode === 'Heatmap')      loadHeatmapData();
+    else if (mode === 'Straßenmodus') enableStreetMode();
+    else                               AppState.markers.forEach(m => m.addTo(map));
+
+    document.getElementById('mode-toggle').innerHTML = `<h3>${mode}</h3>`;
   });
-
-  document.getElementById('mode-toggle').innerHTML =
-    `<h3>${AppState.modes[AppState.currentMode]}</h3>`;
 }
 
-// 10. Sidebar- und Filter-Funktionen
+// 12. Themewechsel (um Styles zu berücksichtigen)
+function toggleTheme() {
+  switchTo('currentTheme','themes', () => {
+    const url = AppState.themes[AppState.currentTheme].url;
+    map.setStyle(url);
+    map.once('style.load', () => {
+      const mode = AppState.modes[AppState.currentMode];
+      if      (mode === 'Heatmap')      loadHeatmapData();
+      else if (mode === 'Straßenmodus') enableStreetMode();
+      else                               AppState.markers.forEach(m => m.addTo(map));
+    });
+    document.getElementById('theme-toggle').innerHTML = `<h3>${AppState.themes[AppState.currentTheme].name}</h3>`;
+  });
+}
+
+// 13. Sidebar- und Filter-Funktionen
 function showEventDetails(event) {
   const sidebar = document.getElementById('sidebar');
   const content = document.getElementById('event-content');
@@ -308,9 +326,9 @@ function showEventDetails(event) {
 function updateFilter(checkbox) {
   const filterType = checkbox.value;
   const isChecked = checkbox.checked;
-  document.querySelectorAll('.map-marker').forEach(markerEl => {
-    if (markerEl.type === filterType) {
-      markerEl.style.display = isChecked ? 'block' : 'none';
+  document.querySelectorAll('.map-marker').forEach(el => {
+    if (el.type === filterType) {
+      el.style.display = isChecked ? 'block' : 'none';
     }
   });
 }
@@ -326,10 +344,7 @@ function toggleLegendMenu() {
 function addLatestEvent(type, date, location, lat, lng, description) {
   const content = document.getElementById('latest-events-content');
   if (!content) return;
-  const maxEntries = 50;
-  if (content.children.length >= maxEntries) {
-    content.removeChild(content.firstElementChild);
-  }
+  if (content.children.length >= 50) content.removeChild(content.firstElementChild);
   const eventDiv = document.createElement('div');
   eventDiv.className = 'latest-event';
   eventDiv.innerHTML = `
@@ -340,6 +355,14 @@ function addLatestEvent(type, date, location, lat, lng, description) {
     <p>${description}</p>
   `;
   content.appendChild(eventDiv);
+}
+
+function toggleLatestEventsSidebar() {
+  document.getElementById('latest-events-sidebar').classList.toggle('active');
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('active');
 }
 
 function flyToDistrict() {

@@ -1,127 +1,125 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hamburg Unfallkarte</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hamburg Unfallkarte</title>
 
-    <!-- CSS laden -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css" rel="stylesheet" />
+  <!-- CSS laden -->
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/style.css') }}"
+  />
+  <link
+    href="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css"
+    rel="stylesheet"
+  />
 
-    <!-- JavaScript-Bibliotheken -->
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js"></script>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- JavaScript-Bibliotheken -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <!-- OSM → GeoJSON Converter für Straßenmodus -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/osmtogeojson/3.0.0/osmtogeojson.min.js"></script>
+  <!-- Turf.js für räumliche Analysen -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 </head>
 <body>
-    <div id="top-bar">
-        <div class="button-group">
-            <button class="nav-button" onclick="toggleFiltersMenu()"><h3>Filter</h3></button>
-            <button class="nav-button" onclick="toggleLegendMenu()"><h3>Legende</h3></button>
-            <button class="nav-button" id="theme-toggle" onclick="toggleTheme()"><h3>Standard</h3></button>
-            <button class="nav-button" id="mode-toggle" onclick="toggleModeChange()"><h3>Punkte</h3></button>
-            <select id="district-select" class="nav-button" onchange="flyToDistrict()">
-                <option value="">Wähle ein Bezirk</option>
-                <optgroup label="Eimsbüttel">
-                    <option value="Eimsbüttel-Schanzenviertel">Schanzenviertel</option>
-                    <option value="Eimsbüttel-Hoheluft-West">Hoheluft-West</option>
-                    <option value="Eimsbüttel-Eppendorf">Eppendorf</option>
-                </optgroup>
-                <optgroup label="Altona">
-                    <option value="Altona-Ottensen">Ottensen</option>
-                    <option value="Altona-Altona-Altstadt">Altona-Altstadt</option>
-                    <option value="Altona-Bahrenfeld">Bahrenfeld</option>
-                </optgroup>
-                <optgroup label="Hamburg-Mitte">
-                    <option value="Hamburg-Mitte-St. Pauli">St. Pauli</option>
-                    <option value="Hamburg-Mitte-HafenCity">HafenCity</option>
-                    <option value="Hamburg-Mitte-Altstadt">Altstadt</option>
-                </optgroup>
-            </select>
-        </div>
-        <div class="title-container">
-            <h1 class="title-right">Unfälle</h1>
-            <a href="https://www.uni-hamburg.de"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/UHH_Universität_Hamburg_Logo.svg/600px-UHH_Universität_Hamburg_Logo.svg.png" alt="Universität Hamburg Logo" class="uhh-logo"></a>
-        </div>
+  <div id="top-bar">
+    <div class="button-group">
+      <button class="nav-button" onclick="toggleFiltersMenu()"><h3>Filter</h3></button>
+      <button class="nav-button" onclick="toggleLegendMenu()"><h3>Legende</h3></button>
+      <button class="nav-button" id="theme-toggle" onclick="toggleTheme()"><h3>Standard</h3></button>
+      <button class="nav-button" id="mode-toggle" onclick="toggleModeChange()"><h3>Punkte</h3></button>
+      <select id="district-select" class="nav-button" onchange="flyToDistrict()">
+        <option value="">Wähle ein Bezirk</option>
+        <optgroup label="Eimsbüttel">
+          <option value="Eimsbüttel-Schanzenviertel">Schanzenviertel</option>
+          <option value="Eimsbüttel-Hoheluft-West">Hoheluft-West</option>
+          <option value="Eimsbüttel-Eppendorf">Eppendorf</option>
+        </optgroup>
+        <optgroup label="Altona">
+          <option value="Altona-Ottensen">Ottensen</option>
+          <option value="Altona-Altona-Altstadt">Altona-Altstadt</option>
+          <option value="Altona-Bahrenfeld">Bahrenfeld</option>
+        </optgroup>
+        <optgroup label="Hamburg-Mitte">
+          <option value="Hamburg-Mitte-St. Pauli">St. Pauli</option>
+          <option value="Hamburg-Mitte-HafenCity">HafenCity</option>
+          <option value="Hamburg-Mitte-Altstadt">Altstadt</option>
+        </optgroup>
+      </select>
     </div>
-
-    <!-- Map Container -->
-    <div id="map-container">
-        <div id="map"></div>
-        <div id="sidebar-toggle" onclick="toggleSidebar()"></div>
+    <div class="title-container">
+      <h1 class="title-right">Unfälle</h1>
+      <a href="https://www.uni-hamburg.de">
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/UHH_Universität_Hamburg_Logo.svg/600px-UHH_Universität_Hamburg_Logo.svg.png"
+          alt="Universität Hamburg Logo"
+          class="uhh-logo"
+        />
+      </a>
     </div>
+  </div>
 
-    <!-- Filters Menu -->
-    <div id="filters-menu" class="slide-menu">
-        <div class="menu-header">
-            <h2>Filter</h2>
-            <button class="close-btn" onclick="toggleFiltersMenu()">✕</button>
-        </div>
-        <form id="filter-form">
-            <label>
-                <input type="checkbox" name="type" value="UNFALL" checked onchange="updateFilter(this)"> Unfälle
-            </label>
-            <label>
-                <input type="checkbox" name="type" value="AuthorityOperation" checked onchange="updateFilter(this)"> Behördliche Einsätze
-            </label>
-        </form>
+  <!-- Map Container -->
+  <div id="map-container">
+    <div id="map"></div>
+    <div id="sidebar-toggle" onclick="toggleSidebar()"></div>
+  </div>
+
+  <!-- Filters Menu -->
+  <div id="filters-menu" class="slide-menu">
+    <div class="menu-header">
+      <h2>Filter</h2>
+      <button class="close-btn" onclick="toggleFiltersMenu()">✕</button>
     </div>
+    <form id="filter-form">
+      <label>
+        <input type="checkbox" name="type" value="UNFALL" checked onchange="updateFilter(this)" /> Unfälle
+      </label>
+      <label>
+        <input type="checkbox" name="type" value="AuthorityOperation" checked onchange="updateFilter(this)" />
+        Behördliche Einsätze
+      </label>
+    </form>
+  </div>
 
-    <!-- Legend Menu -->
-    <div id="legend-menu" class="slide-menu">
-        <div class="menu-header">
-            <h2>Legende</h2>
-            <button class="close-btn" onclick="toggleLegendMenu()">✕</button>
-        </div>
-        <ul>
-            <li><strong>Unfall:</strong> Autounfälle.</li>
-            <li><strong>Behördliche Einsätze:</strong> Einsätze, die von Behörden ausgeführt werden (z.B., Feuerwehreinsatz).</li>
-        </ul>
+  <!-- Legend Menu -->
+  <div id="legend-menu" class="slide-menu">
+    <div class="menu-header">
+      <h2>Legende</h2>
+      <button class="close-btn" onclick="toggleLegendMenu()">✕</button>
     </div>
+    <ul>
+      <li><strong>Unfall:</strong> Autounfälle.</li>
+      <li><strong>Behördliche Einsätze:</strong> Einsätze, die von Behörden ausgeführt werden (z. B., Feuerwehreinsatz).</li>
+    </ul>
+  </div>
 
-    <!-- Sidebar für neueste Events -->
-    <div id="latest-events-sidebar">
-        <div class="close-btn" onclick="toggleLatestEventsSidebar()">✕</div>
-        <h2>Latest Events</h2>
-        <div id="latest-events-content">
-            <p>No events yet.</p>
-        </div>
+  <!-- Sidebar für neueste Events -->
+  <div id="latest-events-sidebar" class="slide-menu">
+    <div class="menu-header">
+      <h2>Letzte Ereignisse</h2>
+      <button class="close-btn" onclick="toggleLatestEventsSidebar()">✕</button>
     </div>
+    <div id="latest-events-content"><p>Keine Ereignisse vorhanden.</p></div>
+  </div>
 
-        <!-- Latest Events Sidebar -->
-    <div id="latest-events-sidebar" class="slide-menu">
-        <div class="menu-header">
-            <h2>Letzte Ereignisse</h2>
-            <button class="close-btn" onclick="toggleLatestEventsSidebar()">✕</button>
-        </div>
-        <div id="latest-events-content">
-            <p>Keine Ereignisse vorhanden.</p>
-        </div>
+  <!-- Detail-Sidebar -->
+  <div id="sidebar" class="slide-menu">
+    <div class="menu-header">
+      <h2>Details zu Ereignissen</h2>
+      <button class="close-btn" onclick="toggleSidebar()">✕</button>
     </div>
-    
-    <div id="latest-events-sidebar" class="slide-menu">
-        <div class="menu-header">
-            <h2>Letzte Ereignisse</h2>
-            <button class="close-btn" onclick="toggleLatestEventsSidebar()">✕</button>
-        </div>
-        <div id="latest-events-content">
-            <p>Keien Ereignisse vorhanden.</p>
-        </div>
+    <div id="event-content">
+      <p>Wähle ein Ereignis aus, um Details zu sehen.</p>
     </div>
+  </div>
 
-        <!-- Sidebar -->
-    <div id="sidebar">
-        <div class="close-btn" onclick="toggleSidebar()">✕</div>
-        <h2>Details zu Ereignissen</h2>
-        <div id="event-content">
-            <p>Wähle eine Ereignis aus, um Details zu sehen.</p>
-        </div>
-    </div>
+  <!-- Button to Open the Latest Events Sidebar -->
+  <button id="latest-events-toggle" onclick="toggleLatestEventsSidebar()">Letzte Ereignisse</button>
 
-        <!-- Button to Open the Latest Events Sidebar -->
-    <button id="latest-events-toggle" onclick="toggleLatestEventsSidebar()">Letzte Ereignisse</button>
-
-    <!-- Eigenes JavaScript -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+  <!-- Eigenes JavaScript -->
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
+</html>
