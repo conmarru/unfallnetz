@@ -1,7 +1,7 @@
-# src/heatmap.py
-
 import requests
 from flask import jsonify, current_app, request
+from .utils_spatial import assign_events_to_segments, fetch_street_segments
+
 
 def register_heatmap_routes(app, collection_handler):
     @app.route('/api/heatmap')
@@ -23,60 +23,52 @@ def register_heatmap_routes(app, collection_handler):
             features.append({
                 "type": "Feature",
                 "properties": {"gefahrenstufe": level},
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [lon, lat]
-                }
+                "geometry": {"type": "Point", "coordinates": [lon, lat]}
             })
 
-        return jsonify({
-            "type": "FeatureCollection",
-            "features": features
-        })
+        return jsonify({"type": "FeatureCollection", "features": features})
 
     @app.route('/api/streets')
     def streets_api():
         """
-        Liefert alle OSM-Highway-Ways innerhalb der übergebenen bbox als GeoJSON.
-        Verwendet Overpass API, f=html-Parameter entfällt.
+        Liefert nur Straßensegmente mit Ereignissen:
+        dangerLevel 1 (Gelb) oder 2 (Rot).
         """
         bbox = request.args.get('bbox')
         if not bbox:
             return jsonify({"error": "bbox fehlt"}), 400
 
-        overpass_url = 'http://overpass-api.de/api/interpreter'
-        # Overpass QL: alle Ways mit highway-Tag in bbox
-        query = f'[out:json][timeout:25];way["highway"]({bbox});out geom;'
+        # 1) Events laden
         try:
-            resp = requests.post(overpass_url, data={'data': query}, timeout=30)
-            resp.raise_for_status()
-            osm = resp.json()
+            events = list(collection_handler.find())
         except Exception:
-            current_app.logger.error("Fehler beim Abrufen der Overpass-Daten", exc_info=True)
+            current_app.logger.error("Fehler beim Abrufen der Unfalldaten", exc_info=True)
+            return jsonify({"error": "Datenbankfehler"}), 500
+
+        # 2) DangerMap berechnen
+        try:
+            danger_map = assign_events_to_segments(events, bbox)
+        except Exception:
+            current_app.logger.error("Fehler bei spatial-Assignment", exc_info=True)
+            return jsonify({"error": "Zuweisung fehlgeschlagen"}), 500
+
+        # 3) Geometrie holen
+        try:
+            lines, ids = fetch_street_segments(bbox)
+        except Exception:
+            current_app.logger.error("Fehler beim Abrufen der Straßen-Geometrie", exc_info=True)
             return jsonify({"error": "Straßen-Daten nicht verfügbar"}), 502
 
+        # 4) FeatureCollection aufbauen
         features = []
-        for elem in osm.get('elements', []):
-            if elem.get('type') != 'way':
-                continue
-            geometry = elem.get('geometry', [])
-            # Baue LineString-Koordinatenliste
-            coords = [[node['lon'], node['lat']] for node in geometry]
-            if len(coords) < 2:
-                continue
-            features.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": coords
-                },
-                "properties": {
-                    # dangerLevel wird clientseitig berechnet
-                    "id": elem.get('id')
-                }
-            })
+        for line, sid in zip(lines, ids):
+            lvl = danger_map.get(sid, 0)
+            if lvl > 0:
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "LineString", "coordinates": list(line.coords)},
+                    "properties": {"dangerLevel": lvl}
+                })
 
-        return jsonify({
-            "type": "FeatureCollection",
-            "features": features
-        })
+        current_app.logger.info(f"API /api/streets liefert {len(features)} gefärbte Segmente")
+        return jsonify({"type": "FeatureCollection", "features": features})

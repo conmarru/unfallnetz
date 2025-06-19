@@ -138,7 +138,8 @@ function initRoadDangerLayer() {
       'line-color': [
         'case',
         ['==',['feature-state','dangerLevel'],2],'red',
-        ['==',['feature-state','dangerLevel'],1],'yellow'
+        ['==',['feature-state','dangerLevel'],1],'yellow',
+        'blue'
       ]
     }
   }, beforeId);
@@ -206,6 +207,8 @@ function loadGeoJSONStreetData() {
               'match',['get','dangerLevel'],
               2,'red',
               1,'yellow',
+              0,'blue',
+              'gray'
             ]
           }
         });
